@@ -27,9 +27,14 @@ public class Repository
             try
             {
                 using var sr = new StreamReader(movieCodesPath);
+                bool flag = true;
                 while (sr.ReadLine() is { } line)
                 {
-                    if (line.StartsWith("titleId")) continue;
+                    if (flag)
+                    {
+                        flag = false;
+                        continue;
+                    }
                     var lineData = line.Trim().Split('\t');
                     if (lineData[3] == "US" || lineData[3] == "GB" || lineData[3] == "RU" || lineData[3] == "AU" || lineData[3] == "EU" || lineData[4] == "en" || lineData[4] == "ru")
                     {
@@ -50,9 +55,14 @@ public class Repository
             try
             {
                 using var sr = new StreamReader(ratingsPath);
+                bool flag = true;
                 while (sr.ReadLine() is { } line)
                 {
-                    if (line.StartsWith("tconst")) continue;
+                    if (flag)
+                    {
+                        flag = false;
+                        continue;
+                    }
                     var lineData = line.Trim().Split('\t', ' ');
                     if (!mvIdToName.TryGetValue(lineData[0], out string? value)) continue;
                     movies[value].rating = lineData[1];
@@ -70,9 +80,14 @@ public class Repository
             try
             {
                 using var sr = new StreamReader(actorDirectorsNamesPath);
+                bool flag = true;
                 while (sr.ReadLine() is { } line)
                 {
-                    if (line.StartsWith("nconst")) continue;
+                    if (flag)
+                    {
+                        flag = false;
+                        continue;
+                    }
                     var lineData = line.Trim().Split('\t');
                     tagToName.Add(lineData[0], lineData[1]);
                 }
@@ -86,33 +101,38 @@ public class Repository
             try
             {
                 using var sr = new StreamReader(actorDirectorsCodesPath);
+                bool flag = true;
                 while (sr.ReadLine() is { } line)
                 {
-                    if (line.StartsWith("tconst")) continue;
+                    if (flag)
+                    {
+                        flag = false;
+                        continue;
+                    }
                     var lineData = line.Trim().Split('\t');
-                    if(!tagToName.ContainsKey(lineData[2])) continue;
+                    if (!mvIdToName.TryGetValue(lineData[0], out string? value)) continue;
+                    Movie mv = movies[value];
+                    if(!tagToName.TryGetValue(lineData[2], out string? tag)) continue;
                     if (lineData[3] == "actor" || lineData[3] == "actress"){
-                        if (!mvIdToName.TryGetValue(lineData[0], out string? value)) continue;
                         
-                        Movie mv = movies[value];
-                        mv.actors.Add(tagToName[lineData[2]]);
                         
-                        if (!peopleToMovie.ContainsKey(tagToName[lineData[2]]))
+                        mv.actors.Add(tag);
+                        
+                        if (!peopleToMovie.ContainsKey(tag))
                         {
-                            peopleToMovie[tagToName[lineData[2]]] = [];
+                            peopleToMovie[tag] = [];
                         }
-                        peopleToMovie[tagToName[lineData[2]]].Add(mv);
+                        peopleToMovie[tag].Add(mv);
                     } else if (lineData[3] == "producer" || lineData[3] == "director")
                     {
-                        if (!mvIdToName.TryGetValue(lineData[0], out string? value)) continue;
-                        Movie mv = movies[value];
+                        
 
-                        mv.production.Add(tagToName[lineData[2]]);
-                        if (!peopleToMovie.ContainsKey(tagToName[lineData[2]]))
+                        mv.production.Add(tag);
+                        if (!peopleToMovie.ContainsKey(tag))
                         {
-                            peopleToMovie[tagToName[lineData[2]]] = [];
+                            peopleToMovie[tag] = [];
                         }
-                        peopleToMovie[tagToName[lineData[2]]].Add(mv);
+                        peopleToMovie[tag].Add(mv);
                     }
                 }
             }
@@ -128,9 +148,14 @@ public class Repository
             try
             {
                 using var sr = new StreamReader(linksPath);
+                bool flag = true;
                 while (sr.ReadLine() is { } line)
                 {
-                    if (line.StartsWith("movieId")) continue;
+                    if (flag)
+                    {
+                        flag = false;
+                        continue;
+                    }
                     var lineData = line.Trim().Split(',');
                     movieIDtoImdb.Add(int.Parse(lineData[0]), lineData[1]);
                 }
@@ -144,9 +169,14 @@ public class Repository
             try
             {
                 using var sr = new StreamReader(tagCodesPath);
+                bool flag = true;
                 while (sr.ReadLine() is { } line)
                 {
-                    if (line.StartsWith("tagId")) continue;
+                    if (flag)
+                    {
+                        flag = false;
+                        continue;
+                    }
                     var lineData = line.Trim().Split(',');
                     idToTag.Add(lineData[0], lineData[1]);
                 }
@@ -159,9 +189,14 @@ public class Repository
             try
             {
                 using var sr = new StreamReader(tagScoresPath);
+                bool flag = true;
                 while (sr.ReadLine() is { } line)
                 {
-                    if (line.StartsWith("movieId")) continue;
+                    if (flag)
+                    {
+                        flag = false;
+                        continue;
+                    }
                     var lineData = line.Trim().Split(',');
                     if (float.Parse(lineData[2], CultureInfo.InvariantCulture.NumberFormat) > 0.5)
                     {
