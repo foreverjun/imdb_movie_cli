@@ -9,7 +9,7 @@ class Program
 {
     // Словари для хранения данных
     
-    static Repository repository = new Repository();
+    static AsyncRepository repository = new();
 
     static void Main(string[] args)
     {
