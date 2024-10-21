@@ -33,7 +33,7 @@ public class AsyncRepository
         BlockingCollection<string> tagsCollection = new();
 
 
-        var moviesProducer = Task.Run(() =>
+        var moviesProducer = Task.Factory.StartNew(() =>
         {
             using var sr = new StreamReader(movieCodesPath);
             bool flag = true;
@@ -49,9 +49,9 @@ public class AsyncRepository
             }
 
             moviesCollection.CompleteAdding();
-        });
+        }, TaskCreationOptions.LongRunning);
 
-        var idToNameProducer = Task.Run(() =>
+        var idToNameProducer = Task.Factory.StartNew(() =>
         {
             using var sr = new StreamReader(actorDirectorsNamesPath);
             var flag = true;
@@ -67,9 +67,9 @@ public class AsyncRepository
             }
 
             idToNameCollection.CompleteAdding();
-        });
+        }, TaskCreationOptions.LongRunning);
 
-        var linksProducer = Task.Run(() =>
+        var linksProducer = Task.Factory.StartNew(() =>
         {
             using var sr = new StreamReader(linksPath);
             var flag = true;
@@ -85,9 +85,9 @@ public class AsyncRepository
             }
 
             linksCollection.CompleteAdding();
-        });
+        }, TaskCreationOptions.LongRunning);
 
-        var tagsProducer = Task.Run(() =>
+        var tagsProducer = Task.Factory.StartNew(() =>
         {
             using var sr = new StreamReader(tagCodesPath);
             var flag = true;
@@ -103,7 +103,7 @@ public class AsyncRepository
             }
 
             tagsCollection.CompleteAdding();
-        });
+        }, TaskCreationOptions.LongRunning);
 
         // Setup threads
 
@@ -112,7 +112,7 @@ public class AsyncRepository
 
         for (int i = 0; i < processorCount; i++)
         {
-            moviesTasks[i] = Task.Run(() =>
+            moviesTasks[i] = Task.Factory.StartNew(() =>
             {
                 Span<Range> ranges = stackalloc Range[8];
                 foreach (var line in moviesCollection.GetConsumingEnumerable())
@@ -134,13 +134,13 @@ public class AsyncRepository
                         mvIdToName.TryAdd(id, title);
                     }
                 }
-            });
+            }, TaskCreationOptions.LongRunning);
         }
 
         var idToNameTasks = new Task[processorCount];
         for (int i = 0; i < processorCount; i++)
         {
-            idToNameTasks[i] = Task.Run(() =>
+            idToNameTasks[i] = Task.Factory.StartNew(() =>
             {
                 Span<Range> ranges = stackalloc Range[6];
                 foreach (var line in idToNameCollection.GetConsumingEnumerable())
@@ -152,13 +152,13 @@ public class AsyncRepository
                     var name = span[ranges[1]].ToString();
                     tagToName.TryAdd(id, name);
                 }
-            });
+            }, TaskCreationOptions.LongRunning);
         }
 
         var linksTasks = new Task[processorCount];
         for (int i = 0; i < processorCount; i++)
         {
-            linksTasks[i] = Task.Run(() =>
+            linksTasks[i] = Task.Factory.StartNew(() =>
             {
                 Span<Range> ranges = stackalloc Range[3];
                 foreach (var line in linksCollection.GetConsumingEnumerable())
@@ -170,13 +170,13 @@ public class AsyncRepository
                     var imdpId = span[ranges[1]].ToString();
                     movieIDtoImdb.TryAdd(movieId, imdpId);
                 }
-            });
+            }, TaskCreationOptions.LongRunning);
         }
 
         var tagsTasks = new Task[processorCount];
         for (int i = 0; i < processorCount; i++)
         {
-            tagsTasks[i] = Task.Run(() =>
+            tagsTasks[i] = Task.Factory.StartNew(() =>
             {
                 Span<Range> ranges = stackalloc Range[2];
                 foreach (var line in tagsCollection.GetConsumingEnumerable())
@@ -188,7 +188,7 @@ public class AsyncRepository
                     var tag = span[ranges[1]].ToString();
                     idToTag.TryAdd(tagId, tag);
                 }
-            });
+            }, TaskCreationOptions.LongRunning);
         }
 
         // Wait for the producer and all processor tasks to complete
@@ -204,7 +204,7 @@ public class AsyncRepository
         BlockingCollection<string> peopleToMovieCollection = new();
         BlockingCollection<string> tagsCollection = new();
 
-        var ratingsProducer = Task.Run(() =>
+        var ratingsProducer = Task.Factory.StartNew(() =>
         {
             using var sr = new StreamReader(ratingsPath);
             bool flag = true;
@@ -220,9 +220,9 @@ public class AsyncRepository
             }
 
             ratingsCollection.CompleteAdding();
-        });
+        }, TaskCreationOptions.LongRunning);
 
-        var peopleToMovieProducer = Task.Run(() =>
+        var peopleToMovieProducer = Task.Factory.StartNew(() =>
         {
             using var sr = new StreamReader(actorDirectorsCodesPath);
             bool flag = true;
@@ -238,9 +238,9 @@ public class AsyncRepository
             }
 
             peopleToMovieCollection.CompleteAdding();
-        });
+        }, TaskCreationOptions.LongRunning);
 
-        var tagsToMovieProducer = Task.Run(() =>
+        var tagsToMovieProducer = Task.Factory.StartNew(() =>
         {
             using var sr = new StreamReader(tagScoresPath);
             bool flag = true;
@@ -256,12 +256,12 @@ public class AsyncRepository
             }
 
             tagsCollection.CompleteAdding();
-        });
+        }, TaskCreationOptions.LongRunning);
 
         var ratingsTasks = new Task[2];
         for (int i = 0; i < 2; i++)
         {
-            ratingsTasks[i] = Task.Run(() =>
+            ratingsTasks[i] = Task.Factory.StartNew(() =>
             {
                 Span<Range> ranges = stackalloc Range[3];
                 foreach (var line in ratingsCollection.GetConsumingEnumerable())
@@ -274,13 +274,13 @@ public class AsyncRepository
                     if (!mvIdToName.TryGetValue(movieId, out string? value)) continue;
                     movies[value].rating = rating;
                 }
-            });
+            }, TaskCreationOptions.LongRunning);
         }
 
         var peopleToMovieTasks = new Task[8];
         for (int i = 0; i < 8; i++)
         {
-            peopleToMovieTasks[i] = Task.Run(() =>
+            peopleToMovieTasks[i] = Task.Factory.StartNew(() =>
             {
                 Span<Range> ranges = stackalloc Range[6];
                 foreach (var line in peopleToMovieCollection.GetConsumingEnumerable())
@@ -334,13 +334,13 @@ public class AsyncRepository
                         }
                     }
                 }
-            });
+            }, TaskCreationOptions.LongRunning);
         }
 
         var tagsTasks = new Task[4];
         for (int i = 0; i < 4; i++)
         {
-            tagsTasks[i] = Task.Run(() =>
+            tagsTasks[i] = Task.Factory.StartNew(() =>
             {
                 Span<Range> ranges = stackalloc Range[3];
                 foreach (var line in tagsCollection.GetConsumingEnumerable())
@@ -370,7 +370,7 @@ public class AsyncRepository
                         }
                     }
                 }
-            });
+            }, TaskCreationOptions.LongRunning);
         }
 
         Task.WaitAll(new[] { ratingsProducer }.Concat(ratingsTasks).ToArray());
