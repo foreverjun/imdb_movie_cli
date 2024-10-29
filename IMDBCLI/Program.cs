@@ -9,7 +9,7 @@ class Program
 {
     // Словари для хранения данных
     
-    static AsyncRepository repository = new();
+    static DBRepository repository = new();
 
     static void Main(string[] args)
     {
@@ -23,7 +23,6 @@ class Program
             Console.Write("movie-cli> ");
             string input = Console.ReadLine();
             
-            repository.initalizeData();
             if (string.IsNullOrWhiteSpace(input))
             {
                 continue;
@@ -62,6 +61,9 @@ class Program
                 case "--tags":
                 case "-t":
                     HandleTags(arguments);
+                    break;
+                case "--db":
+                    HandleDB();
                     break;
 
                 default:
@@ -182,6 +184,11 @@ class Program
             Console.WriteLine($"Тэг \"{tag}\" не найден.");
         }
     }
+    
+    static void HandleDB()
+    {
+        repository.loadToDB();
+    }
 
     static void PrintHelp()
     {
@@ -189,6 +196,7 @@ class Program
         Console.WriteLine("  --movies [название] или -m [название]   : Получить информацию о фильме или количество фильмов");
         Console.WriteLine("  --people [имя] или -p [имя]           : Получить фильмы по имени актера/режиссера или количество людей");
         Console.WriteLine("  --tags [тэг] или -t [тэг]             : Получить фильмы по тэгу или количество тэгов");
+        Console.WriteLine("  --db                                   : Загрузить данные из текстового файла в базу данных");
         Console.WriteLine("  help                                   : Показать эту справку");
         Console.WriteLine("  exit или quit                          : Выйти из программы");
         Console.WriteLine();

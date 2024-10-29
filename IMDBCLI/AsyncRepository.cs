@@ -380,35 +380,46 @@ public class AsyncRepository
 
     public Movie? getMovie(string imdbId)
     {
+        initalizeData();
         if (!movies.TryGetValue(imdbId, out Movie? value)) return null;
         return value;
     }
 
     public HashSet<Movie>? getPerson(string imdbId)
     {
+        initalizeData();
         if (!peopleToMovie.TryGetValue(imdbId, out HashSet<Movie>? value)) return null;
         return value;
     }
 
     public HashSet<Movie>? getTag(string imdbId)
     {
+        initalizeData();
         if (!tagToMovie.TryGetValue(imdbId, out HashSet<Movie>? value)) return null;
         return value;
     }
 
     public int getMoviesNum()
     {
+        initalizeData();
         return movies.Count;
     }
 
     public int getPeopleNum()
     {
+        initalizeData();
         return peopleToMovie.Count;
     }
 
     public int getTagNum()
     {
+        initalizeData();
         return tagToMovie.Count;
+    }
+
+    public void loadToDB()
+    {
+        
     }
 
     public void initalizeData()

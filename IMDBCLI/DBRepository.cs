@@ -1,6 +1,8 @@
 ﻿using System.Diagnostics;
 using System.Globalization;
+using EFCore.BulkExtensions;
 using IMDBCLI.model;
+using Microsoft.EntityFrameworkCore;
 
 namespace IMDBCLI;
 
@@ -290,35 +292,242 @@ public class DBRepository
 
     public Movie? getMovie(string imdbId)
     {
-        if (!movies.TryGetValue(imdbId, out Movie? value)) return null;
-        return value;
+        using (DAO db = new DAO())
+        {
+            var movieEntry = db.Movies
+                .Include(m => m.Actors)
+                .Include(m => m.Directors)
+                .Include(m => m.Tags)
+                .FirstOrDefault(m => m.MovieName == imdbId);
+
+            if (movieEntry != null)
+            {
+                return Movie.FromEntity(movieEntry);
+            }
+
+            return null;
+        }
     }
 
     public HashSet<Movie>? getPerson(string imdbId)
     {
-        if (!peopleToMovie.TryGetValue(imdbId, out HashSet<Movie>? value)) return null;
-        return value;
+        using (DAO db = new DAO())
+        {
+            var moviesSet = new HashSet<Movie>();
+            // Try to find the actor with the given ID
+            var actor = db.Actors
+                .Include(a => a.Movies)
+                .FirstOrDefault(a => a.Name == imdbId);
+
+            if (actor != null)
+            {
+                var movies = actor.Movies
+                    .Select(Movie.FromEntity)
+                    .ToHashSet();
+
+                moviesSet.UnionWith(movies);
+            }
+
+            // If not found as an actor, try as a director
+            var director = db.Directors
+                .Include(d => d.Movies)
+                .FirstOrDefault(d => d.Name == imdbId);
+
+            if (director != null)
+            {
+                var movies = director.Movies
+                    .Select(Movie.FromEntity)
+                    .ToHashSet();
+
+                moviesSet.UnionWith(movies);
+            }
+
+            if (moviesSet.Count == 0) return null;
+
+            return moviesSet;
+        }
     }
 
     public HashSet<Movie>? getTag(string imdbId)
     {
-        if (!tagToMovie.TryGetValue(imdbId, out HashSet<Movie>? value)) return null;
-        return value;
+        using (DAO db = new DAO())
+        {
+            var tag = db.Tags
+                .Include(t => t.Movies)
+                .FirstOrDefault(t => t.Name == imdbId);
+
+            if (tag != null)
+            {
+                var movies = tag.Movies
+                    .Select(Movie.FromEntity)
+                    .ToHashSet();
+                return movies;
+            }
+            return null;
+        }
     }
 
     public int getMoviesNum()
     {
-        return movies.Count;
+        using (DAO db = new DAO())
+        {
+            return db.Movies.Count();
+        }
     }
 
     public int getPeopleNum()
     {
-        return peopleToMovie.Count;
+        using (DAO db = new DAO())
+        {
+            return db.Actors.Count() + db.Directors.Count();
+        }
     }
 
     public int getTagNum()
     {
-        return tagToMovie.Count;
+        using (DAO db = new DAO())
+        {
+            return db.Tags.Count();
+        }
+    }
+
+    public void loadToDB()
+
+    {
+        initalizeData();
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        using (DAO db = new DAO())
+        {
+            db.Database.EnsureDeleted();
+            db.Database.EnsureCreated();
+            var count = 0;
+            Dictionary<string, ActorEntry> actorDict = new Dictionary<string, ActorEntry>();
+            Dictionary<string, DirectorEntry> directorDict = new Dictionary<string, DirectorEntry>();
+            Dictionary<string, TagEntry> tagDict = new Dictionary<string, TagEntry>();
+
+            var movieEntriesList = new List<MovieEntry>();
+            var movieActorRelations = new List<MovieActor>();
+            var movieDirectorRelations = new List<MovieDirector>();
+            var movieTagRelations = new List<MovieTag>();
+            
+            db.ChangeTracker.AutoDetectChangesEnabled = false; 
+            foreach (var mv in movies)
+            {
+                Movie movie = mv.Value;
+                if (movie.movieName.Length >= 800) continue;
+                if (movie.rating == "" ) movie.rating = "0.0";
+
+                // Создаем MovieEntry для текущего фильма
+                MovieEntry movieEntry = new MovieEntry
+                    { MovieName = movie.movieName, Rating = float.Parse(movie.rating, CultureInfo.InvariantCulture.NumberFormat) };
+                movieEntriesList.Add(movieEntry);
+                // Обрабатываем актеров
+                foreach (string actorName in movie.actors)
+                {
+                    if (!actorDict.TryGetValue(actorName, out var actorEntry))
+                    {
+                        actorEntry = new ActorEntry { Name = actorName };
+                        actorDict.Add(actorName, actorEntry);
+                    }
+
+                    // movieEntry.Actors.Add(actorEntry);
+                    movieActorRelations.Add(new MovieActor
+                    {
+                        MovieEntry = movieEntry,
+                        ActorEntry = actorEntry
+                    });
+                }
+
+                // Обрабатываем режиссеров
+                foreach (string directorName in movie.production) 
+                {
+                    DirectorEntry directorEntry;
+                    if (!directorDict.TryGetValue(directorName, out directorEntry))
+                    {
+                        directorEntry = new DirectorEntry { Name = (directorName) };
+                        directorDict.Add(directorName, directorEntry);
+                    }
+
+                    // Создаем связь между фильмом и режиссером
+                    movieDirectorRelations.Add(new MovieDirector
+                    {
+                        MovieEntry = movieEntry,
+                        DirectorEntry = directorEntry
+                    });
+                }
+
+                // Обрабатываем теги
+                foreach (string tagName in movie.tags)
+                {
+                    TagEntry tagEntry;
+                    if (!tagDict.TryGetValue(tagName, out tagEntry))
+                    {
+                        tagEntry = new TagEntry { Name = tagName };
+                        tagDict.Add(tagName, tagEntry);
+                    }
+
+                    // movieEntry.Tags.Add(tagEntry);
+                    
+                    // Создаем связь между фильмом и тегом
+                    movieTagRelations.Add(new MovieTag
+                    {
+                        MovieEntry = movieEntry,
+                        TagEntry = tagEntry
+                    });
+                }
+
+                // // Добавляем MovieEntry в контекст базы данных
+                // db.Movies.Add(movieEntry);
+
+                count++;
+                // if (count % 1000 == 0) Console.WriteLine($"Loaded {count} movie(s)");
+                // if (count % 1_000 == 0) db.BulkSaveChanges();
+            }
+
+            // // Добавляем актеров, режиссеров и теги в базу данных
+            // db.Actors.AddRange(actorDict.Values);
+            // db.Directors.AddRange(directorDict.Values);
+            // db.Tags.AddRange(tagDict.Values);
+            
+            // Массовая вставка актеров, режиссеров и тегов
+            db.BulkInsert(actorDict.Values);
+            db.BulkInsert(directorDict.Values);
+            db.BulkInsert(tagDict.Values);
+
+            // Массовая вставка фильмов
+            db.BulkInsert(movieEntriesList);
+
+            // После вставки фильмов и других сущностей, установим идентификаторы для связей
+            foreach (var relation in movieActorRelations)
+            {
+                relation.MovieEntryId = relation.MovieEntry.MovieName;
+                relation.ActorEntryId = relation.ActorEntry.Name;
+            }
+
+            foreach (var relation in movieDirectorRelations)
+            {
+                relation.MovieEntryId = relation.MovieEntry.MovieName;
+                relation.DirectorEntryId = relation.DirectorEntry.Name;
+            }
+
+            foreach (var relation in movieTagRelations)
+            {
+                relation.MovieEntryId = relation.MovieEntry.MovieName;
+                relation.TagEntryId = relation.TagEntry.Name;
+            }
+
+            // Массовая вставка связей
+            db.BulkInsert(movieTagRelations);
+            db.BulkInsert(movieActorRelations);
+            db.BulkInsert(movieDirectorRelations);
+            
+
+            // Сохраняем все изменения
+            // db.BulkSaveChanges();
+            db.ChangeTracker.AutoDetectChangesEnabled = true;
+            TimeSpan elapsed = stopwatch.Elapsed;
+            Console.WriteLine($"Время выполнения: {elapsed.TotalSeconds} секунд");
+        }
     }
 
     public void initalizeData()
@@ -329,6 +538,7 @@ public class DBRepository
             loadMovies();
             loadPeople();
             loadTags();
+
 
             // Останавливаем Stopwatch
             stopwatch.Stop();
