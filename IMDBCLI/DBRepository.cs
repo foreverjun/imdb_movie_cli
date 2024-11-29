@@ -149,39 +149,28 @@ public class DBRepository
                 var category = span[ranges[3]];
                 if (category is "actor" || category is "actress")
                 {
-                    lock (mv.actors)
-                    {
                         mv.actors.Add(tag);
-                    }
 
                     if (!peopleToMovie.TryGetValue(tag, out HashSet<Movie>? movie))
                     {
                         movie = ( []);
                         peopleToMovie[tag] = movie;
                     }
-
-                    lock (movie)
-                    {
+                    
                         movie.Add(mv);
-                    }
                 }
                 else if (category is "producer" || category is "director")
                 {
-                    lock (mv.production)
-                    {
                         mv.production.Add(tag);
-                    }
 
                     if (!peopleToMovie.TryGetValue(tag, out HashSet<Movie>? movie))
                     {
                         movie = new HashSet<Movie>();
                         peopleToMovie[tag] = movie;
                     }
-
-                    lock (movie)
-                    {
+                    
                         movie.Add(mv);
-                    }
+                  
                 }
             }
         }
@@ -260,7 +249,8 @@ public class DBRepository
 
                 span.Split(ranges, ',');
                 var relevance = span[ranges[2]];
-                if (float.Parse(relevance, CultureInfo.InvariantCulture.NumberFormat) > 0.5)
+                var relevanceFloat = float.Parse(relevance, CultureInfo.InvariantCulture.NumberFormat);
+                if (relevanceFloat > 0.5)
                 {
                     var movieId = span[ranges[0]];
                     var tagId = span[ranges[1]].ToString();
@@ -269,16 +259,10 @@ public class DBRepository
                     Movie mv = movies[value];
 
                     var tag = idToTag[tagId];
-                    lock (mv.tags)
-                    {
-                        mv.tags.Add(tag);
-                    }
+                    mv.tags.Add(tag);
 
                     if (!tagToMovie.ContainsKey(tag)) tagToMovie[tag] = [];
-                    lock (tagToMovie[tag])
-                    {
                         tagToMovie[tag].Add(mv);
-                    }
                 }
             }
         }
@@ -288,6 +272,65 @@ public class DBRepository
             Console.WriteLine("The file could not be read(tagScores):");
             Console.WriteLine(e.Message);
         }
+    }
+
+    List<SimilarMovie> calculateSimilarity( String movieName)
+    {
+        Console.WriteLine(movies.Count);
+        var moviesToCompare = new HashSet<MovieEntry>();
+        
+
+        using (DAO db = new DAO())
+        {
+            Console.WriteLine("Calculating");
+            
+            var movie = db.Movies
+                .Include(m => m.Actors).ThenInclude(actorEntry => actorEntry.Movies)
+                .Include(m => m.Directors).ThenInclude(directorEntry => directorEntry.Movies)
+                .Include(m => m.Tags).ThenInclude(tagEntry => tagEntry.Movies).AsSplitQuery()
+                .FirstOrDefaultAsync(m => m.MovieName == movieName).Result;
+            Console.WriteLine("Calculated");
+            if (movie == null)
+            {
+                return [];
+            }
+            
+            
+            var actorMovies = movie.Actors.SelectMany(a => a.Movies);
+            var directorMovies = movie.Directors.SelectMany(d => d.Movies);
+            var tagMovies = movie.Tags.SelectMany(t => t.Movies);
+            
+            
+            moviesToCompare.UnionWith(actorMovies);
+            moviesToCompare.UnionWith(directorMovies);
+            moviesToCompare.UnionWith(tagMovies);
+            moviesToCompare.Remove(movie);
+            
+            Console.WriteLine("Union");
+            var mv = Movie.FromEntity(movie);
+            var similar = new HashSet<(MovieEntry, Double)>();
+            foreach (var m in moviesToCompare)
+            {
+                similar.Add((m, mv.Similarity(m)));
+            }
+
+            var top10 = similar.OrderByDescending(pair => pair.Item2).Take(10).ToList();
+            foreach (var sim in top10)
+            {
+                db.MovieSimilarities.Add(new MovieSimilarities
+                {
+                    MovieEntryId1 = movieName,
+                    MovieEntryId2 = sim.Item1.MovieName,
+                    Similarity = sim.Item2,
+                    MovieEntry1 = movie,
+                    MovieEntry2 = sim.Item1
+                });
+            }
+
+            db.SaveChanges();
+            return top10.ConvertAll( sim => new SimilarMovie(Movie.FromEntity(sim.Item1), sim.Item2));
+        }
+        
     }
 
     public Movie? getMovie(string imdbId)
@@ -388,6 +431,34 @@ public class DBRepository
         using (DAO db = new DAO())
         {
             return db.Tags.Count();
+        }
+    }
+    
+    public List<SimilarMovie> GetSimilarMovies(string movieName)
+    {
+        var movieId = movieName;
+
+        using (DAO db = new DAO())
+        {
+            var similarMovies = db.MovieSimilarities
+                .Where(ms => ms.MovieEntryId1 == movieId)
+                .Include(m => m.MovieEntry1)
+                .Include(m => m.MovieEntry2)
+                .ToList();
+            
+            Console.WriteLine("Fetched movies");
+            if (similarMovies.Count != 0)
+            {
+                Console.WriteLine("Found movies");
+                var similarMoviesList = new List<SimilarMovie>();
+                foreach (var sim in similarMovies)
+                {
+                    similarMoviesList.Add(new SimilarMovie(Movie.FromEntity(sim.MovieEntry2), sim.Similarity));
+                }
+
+                return similarMoviesList;
+            }
+            return calculateSimilarity(movieName);
         }
     }
 
@@ -538,6 +609,7 @@ public class DBRepository
             loadMovies();
             loadPeople();
             loadTags();
+            // calculateSimilarity();
 
 
             // Останавливаем Stopwatch

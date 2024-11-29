@@ -8,6 +8,8 @@ public class MovieEntry
     [StringLength(703)]
     public string MovieName { get; set; }
     public float Rating { get; set; }
+    
+    // public string MovieId { get; set; }
 
     public ICollection<ActorEntry> Actors { get; set; } = new HashSet<ActorEntry>();
     public ICollection<DirectorEntry> Directors { get; set; } = new HashSet<DirectorEntry>();

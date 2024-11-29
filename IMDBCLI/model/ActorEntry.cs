@@ -7,7 +7,8 @@ public class ActorEntry
     [Key]
     [StringLength(401)]
     public string Name { get; set; }
-
+    
+    // public string ActorId { get; set; }
     public ICollection<MovieEntry> Movies { get; set; } = new HashSet<MovieEntry>();
     public ICollection<MovieActor> MovieActors { get; set; } = new HashSet<MovieActor>();
 }

@@ -26,3 +26,13 @@ public class MovieTag
     public MovieEntry MovieEntry { get; set; } = null!;
     public TagEntry TagEntry { get; set; } = null!;
 }
+
+public class MovieSimilarities
+{
+    public string MovieEntryId1 { get; set; }
+    public string MovieEntryId2 { get; set; }
+    public double Similarity { get; set; }
+    
+    public MovieEntry MovieEntry1 { get; set; }
+    public MovieEntry MovieEntry2 { get; set; }
+}

@@ -8,6 +8,8 @@ public class DAO : DbContext
     public DbSet<ActorEntry> Actors { get; set; }
     public DbSet<DirectorEntry> Directors { get; set; }
     public DbSet<TagEntry> Tags { get; set; }
+    
+    public DbSet<MovieSimilarities> MovieSimilarities { get; set; }
 
     public DAO() => Database.EnsureCreated();
     
@@ -42,7 +44,19 @@ public class DAO : DbContext
             .UsingEntity<MovieTag>(
                 l => l.HasOne<TagEntry>(e => e.TagEntry).WithMany(e => e.MovieTags).HasForeignKey(e => e.TagEntryId),
                 r => r.HasOne<MovieEntry>(e => e.MovieEntry).WithMany(e => e.MovieTags).HasForeignKey(e => e.MovieEntryId));
+        modelBuilder.Entity<MovieSimilarities>()
+            .HasOne(ms => ms.MovieEntry1)
+            .WithMany()
+            .HasForeignKey(ms => ms.MovieEntryId1)
+            .OnDelete(DeleteBehavior.Restrict); // Нужно, чтобы не удалять связанные записи
 
+        modelBuilder.Entity<MovieSimilarities>()
+            .HasOne(ms => ms.MovieEntry2)
+            .WithMany()
+            .HasForeignKey(ms => ms.MovieEntryId2)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<MovieSimilarities>()
+            .HasKey(ms => new { ms.MovieEntryId1, ms.MovieEntryId2 });
         // modelBuilder.Entity<MovieEntry>()
         //     .HasMany(ma => ma.Tags)
         //     .WithMany(t => t.Movies);

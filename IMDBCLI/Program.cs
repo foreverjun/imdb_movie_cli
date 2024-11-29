@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using IMDBCLI;
 using IMDBCLI.model;
-using static IMDBCLI.Repository;
+// using static IMDBCLI.Repository;
 
 class Program
 {
@@ -61,6 +61,10 @@ class Program
                 case "--tags":
                 case "-t":
                     HandleTags(arguments);
+                    break;
+                case "--sim":
+                case "-s":
+                    HandleSim(arguments);
                     break;
                 case "--db":
                     HandleDB();
@@ -183,6 +187,26 @@ class Program
         {
             Console.WriteLine($"Тэг \"{tag}\" не найден.");
         }
+    }
+
+    static void HandleSim(List<string> args)
+    {
+        string simId = args[0];
+        
+        var similarMovies = repository.GetSimilarMovies(simId);
+        if (similarMovies == null || similarMovies.Count == 0)
+        {
+            Console.WriteLine("Похожих фильмов не найдено.");
+            return;
+        }
+
+        // Выводим список найденных фильмов
+        Console.WriteLine($"Похожие фильмы для фильма с ID {simId}:");
+        foreach (var similarMovie in similarMovies)
+        {
+            Console.WriteLine($"- {similarMovie.movie.movieName} (схожесть: {similarMovie.similarity:P2})");
+        }
+        
     }
     
     static void HandleDB()
