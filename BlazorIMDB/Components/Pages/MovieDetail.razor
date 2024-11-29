@@ -1,0 +1,144 @@
+﻿@page "/movies/{movieName}"
+@using System.Globalization
+@using BlazorIMDB.Services
+@using IMDBCLI.model
+@inject OmdbApi OmdbApi
+@inject MainService MainService
+@rendermode InteractiveServer
+
+@if (Detail != null)
+{
+    <div style="max-width: 800px; margin: 0 auto; padding: 20px;">
+        <h2>@Detail.MovieName</h2>
+        <p>⭐️ <strong>@Detail.Rating</strong></p>
+
+        @if (!string.IsNullOrEmpty(Detail.PosterUrl) && Detail.PosterUrl != "N/A")
+        {
+            <img src="@Detail.PosterUrl" alt="@Detail.MovieName Poster" style="width: 100%; max-width: 400px; height: auto;"/>
+        }
+
+        <p style="margin-top: 20px; color: #555;">
+            @Detail.Description
+        </p>
+
+        <section style="margin-top: 20px;">
+            <h4>Actors</h4>
+            <ul>
+                @foreach (var actor in Detail.Actors)
+                {
+                    <li>
+                        <a href="/actor-search?query=@Uri.EscapeDataString(actor.Name)" style="text-decoration: none; color: #007bff;">
+                            @actor.Name
+                        </a>
+                    </li>
+                }
+            </ul>
+        </section>
+
+        <section style="margin-top: 20px;">
+            <h4>Directors</h4>
+            <ul>
+                @foreach (var director in Detail.Directors)
+                {
+                    <li>
+                        <a href="/actor-search?query=@Uri.EscapeDataString(director.Name)" style="text-decoration: none; color: #007bff;">
+                            @director.Name
+                        </a>
+                    </li>
+                }
+            </ul>
+        </section>
+
+        <section style="margin-top: 20px;">
+            <h4>Tags</h4>
+            <div>
+                @foreach (var tag in Detail.Tags)
+                {
+                    <a href="/tag-search?query=@Uri.EscapeDataString(tag.Name)" style="margin-right: 5px; background-color: #f0f0f0; color: #555; padding: 5px 10px; border-radius: 3px; text-decoration: none;">
+                        #@tag.Name
+                    </a>
+                }
+            </div>
+        </section>
+
+    @if (SimilarMovies != null && SimilarMovies.Any())
+    {
+        <section style="margin-top: 40px;">
+            <h3>Похожие Фильмы</h3>
+            <div style="display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;">
+                @foreach (var movie in SimilarMovies)
+                {
+                    <div style="width: 200px; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); overflow: hidden;">
+                        <div style="padding: 10px;">
+                            <h5 style="margin: 0 0 10px; font-size: 1rem; color: #333;">
+                                <a href="/movies/@movie.movie.movieName" style="text-decoration: none; color: inherit;">
+                                    @movie.movie.movieName
+                                </a>
+                            </h5>
+                            <p style="margin: 0; font-size: 14px;">⭐️ <strong>@movie.movie.rating</strong></p>
+                            <p style="margin: 0; font-size: 14px;">Similarity: <strong>@movie.similarity.ToString(CultureInfo.InvariantCulture)</strong></p>
+                        </div>
+                    </div>
+                }
+            </div>
+        </section>
+    }
+    else if (isSimilarMoviesLoading)
+    {
+        <p>Загрузка похожих фильмов...</p>
+    }
+    else
+    {
+        <p>Похожих фильмов не найдено.</p>
+    }
+    </div>
+}
+else
+{
+    <p>Loading...</p>
+}
+
+@code {
+    [Parameter] public string MovieName { get; set; }
+    private bool isSimilarMoviesLoading = false;
+
+    private MovieDetailViewModel Detail { get; set; }
+    private List<SimilarMovie> SimilarMovies { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var movie = await MainService.GetMovieExactAsync(MovieName);
+
+        if (movie != null)
+        {
+            Detail = new MovieDetailViewModel
+            {
+                MovieName = movie.MovieName,
+                Rating = movie.Rating.ToString(),
+                PosterUrl = null,
+                Description = null,
+                Actors = movie.Actors.ToList(),
+                Directors = movie.Directors.ToList(),
+                Tags = movie.Tags.ToList()
+            };
+            var details = await OmdbApi.GetMovieDetailsAsync(MovieName);
+            if (details != null)
+            {
+                Detail.PosterUrl = details.Poster;
+                Detail.Description = details.Plot;
+            }
+
+            _ = GetSim(movie.MovieName);
+        }
+    }
+
+    public async Task GetSim(string movieName)
+    {
+        isSimilarMoviesLoading = true;
+        SimilarMovies = await MainService.GetSimilarMovies(movieName);
+        isSimilarMoviesLoading = false;
+        StateHasChanged();
+    }
+
+}
+

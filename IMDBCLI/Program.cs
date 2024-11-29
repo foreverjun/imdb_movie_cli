@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using IMDBCLI;
 using IMDBCLI.model;
-using static IMDBCLI.Repository;
+// using static IMDBCLI.Repository;
 
 class Program
 {
@@ -23,7 +23,6 @@ class Program
             Console.Write("movie-cli> ");
             string input = Console.ReadLine();
             
-            repository.initalizeData();
             if (string.IsNullOrWhiteSpace(input))
             {
                 continue;
@@ -62,6 +61,13 @@ class Program
                 case "--tags":
                 case "-t":
                     HandleTags(arguments);
+                    break;
+                case "--sim":
+                case "-s":
+                    HandleSim(arguments);
+                    break;
+                case "--db":
+                    HandleDB();
                     break;
 
                 default:
@@ -183,12 +189,38 @@ class Program
         }
     }
 
+    static void HandleSim(List<string> args)
+    {
+        string simId = args[0];
+        
+        var similarMovies = repository.GetSimilarMovies(simId);
+        if (similarMovies == null || similarMovies.Count == 0)
+        {
+            Console.WriteLine("Похожих фильмов не найдено.");
+            return;
+        }
+
+        // Выводим список найденных фильмов
+        Console.WriteLine($"Похожие фильмы для фильма с ID {simId}:");
+        foreach (var similarMovie in similarMovies)
+        {
+            Console.WriteLine($"- {similarMovie.movie.movieName} (схожесть: {similarMovie.similarity:P2})");
+        }
+        
+    }
+    
+    static void HandleDB()
+    {
+        repository.loadToDB();
+    }
+
     static void PrintHelp()
     {
         Console.WriteLine("Доступные команды:");
         Console.WriteLine("  --movies [название] или -m [название]   : Получить информацию о фильме или количество фильмов");
         Console.WriteLine("  --people [имя] или -p [имя]           : Получить фильмы по имени актера/режиссера или количество людей");
         Console.WriteLine("  --tags [тэг] или -t [тэг]             : Получить фильмы по тэгу или количество тэгов");
+        Console.WriteLine("  --db                                   : Загрузить данные из текстового файла в базу данных");
         Console.WriteLine("  help                                   : Показать эту справку");
         Console.WriteLine("  exit или quit                          : Выйти из программы");
         Console.WriteLine();

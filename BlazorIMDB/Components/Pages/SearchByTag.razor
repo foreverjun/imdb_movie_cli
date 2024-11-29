@@ -1,0 +1,193 @@
+﻿@page "/tag-search"
+@using System.Web
+@using BlazorIMDB.Services
+@using IMDBCLI.model
+@using Microsoft.AspNetCore.WebUtilities
+@inject OmdbApi OmdbApi
+@inject MainService MainService
+@inject NavigationManager navigationManager
+@rendermode InteractiveServer
+
+
+<h3 style="text-align:center; font-family: Arial, sans-serif; color: #333;">🎥 Search Movies by tag</h3>
+
+<div style="margin-bottom: 20px; text-align: center;">
+    <input
+        @bind="searchQuery"
+        placeholder="Enter Tag"
+        style="width: 300px; padding: 10px; margin-right: 10px; border: 1px solid #ccc; border-radius: 5px;"
+    />
+    <button
+        @onclick="SearchMovie"
+        style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
+        🔍 Search
+    </button>
+</div>
+
+@if (isLoading)
+{
+<p style="text-align: center; font-style: italic;">Loading movies...</p>
+}
+else if (movies != null && movies.Items.Any())
+{
+<div style="display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;">
+    @foreach (var movie in movies.Items)
+    {
+    <div style="width: 300px; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); overflow: hidden;">
+        @if (posterCache.TryGetValue(movie.MovieName, out var posterUrl) && !string.IsNullOrEmpty(posterUrl) && posterUrl != "N/A")
+        {
+            <img src="@posterUrl" alt="@movie.MovieName Poster" style="width: 100%; max-width: 250px; height: auto; display: block; margin: 0 auto;"/>
+        }
+
+        <div style="padding: 15px;">
+            <h5 style="margin: 0 0 10px; font-size: 1.25rem; color: #333;">
+                <a href="/movies/@HttpUtility.UrlEncode(movie.MovieName)" style="text-decoration: none; color: inherit;">
+                    @movie.MovieName
+                </a>
+            </h5>
+            <p style="margin: 0; font-size: 14px;">⭐️ <strong>@movie.Rating</strong></p>
+
+            <p style="margin-top: 10px; color: gray;">
+                <strong style="display: block; margin-bottom: 5px;">Actors:</strong>
+                <ul style="list-style-type: none; padding: 0; margin: 5px 0;">
+                    @if (movie.Actors.Any())
+                    {
+                        @foreach (var actor in movie.Actors)
+                        {
+                            <li style="margin: 3px 0;">@actor.Name</li>
+                        }
+                    }
+                </ul>
+            </p>
+
+            <p style="margin-top: 10px; color: gray;">
+                <strong style="display: block; margin-bottom: 5px;">Directors:</strong>
+                <ul style="list-style-type: none; padding: 0; margin: 5px 0;">
+                    @if (movie.Directors.Any())
+                    {
+                        @foreach (var director in movie.Directors)
+                        {
+                            <li style="margin: 3px 0;">@director.Name</li>
+                        }
+                    }
+                </ul>
+            </p>
+
+            <p>
+                @foreach (var tag in movie.Tags.Take(15))
+                {
+                <span
+                    style="margin-right: 5px; background-color: #f0f0f0; color: #555; padding: 5px 10px; border-radius: 3px; cursor: pointer;">
+                                #@tag.Name
+                            </span>
+                }
+            </p>
+        </div>
+    </div>
+    }
+</div>
+
+<div style="margin-top: 20px; text-align: center;">
+    <button
+        @onclick="PreviousPage"
+        disabled="@(movies.PageNumber == 1)"
+        style="padding: 10px 15px; background-color: #f0f0f0; border: none; border-radius: 5px; cursor: pointer;">
+        ⬅️ Previous
+    </button>
+    <span style="margin: 0 10px; color: #333;">Page @movies.PageNumber of @movies.TotalPages</span>
+    <button
+        @onclick="NextPage"
+        disabled="@(movies.PageNumber == movies.TotalPages)"
+        style="padding: 10px 15px; background-color: #f0f0f0; border: none; border-radius: 5px; cursor: pointer;">
+        Next ➡️
+    </button>
+</div>
+}
+else if (!string.IsNullOrEmpty(searchQuery))
+{
+    <p style="text-align: center; font-style: italic;">No movies found for "@searchQuery".</p>
+}
+@code {
+    private string searchQuery = string.Empty; 
+    private bool isLoading = false; 
+    private PagedResult<MovieEntry> movies = null; 
+    private int pageNumber = 1; 
+    private const int pageSize = 5; 
+    private Dictionary<string, string> posterCache = new();
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        await HandleQueryStringAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await HandleQueryStringAsync();
+    }
+
+    private async Task HandleQueryStringAsync()
+    {
+        var uri = navigationManager.ToAbsoluteUri(navigationManager.Uri);
+        var queryParams = QueryHelpers.ParseQuery(uri.Query);
+        if (queryParams.TryGetValue("query", out var q))
+        {
+            var query = q.ToString();
+            if (!string.IsNullOrEmpty(query) && query != searchQuery)
+            {
+                searchQuery = query;
+                await SearchMovie();
+            }
+        }
+    }
+    
+    private async Task LoadPostersForPageAsync()
+    {
+        var tasks = movies.Items
+            .Where(movie => !posterCache.ContainsKey(movie.MovieName))
+            .Select(async movie =>
+            {
+                var details = await OmdbApi.GetMovieDetailsAsync(movie.MovieName);
+                if (details != null)
+                {
+                    posterCache[movie.MovieName] = details.Poster;
+                }
+            });
+
+        await Task.WhenAll(tasks);
+        StateHasChanged();
+    }
+    
+    private async Task PerformSearch()
+    {
+        isLoading = true;
+        movies = await MainService.SearchMoviesWithPaginationAsync(searchQuery, pageNumber, pageSize, SearchType.Tag);
+        isLoading = false;
+        _ = LoadPostersForPageAsync();
+    }
+    
+    private async Task NextPage()
+    {
+        if (movies.PageNumber < movies.TotalPages)
+        {
+            pageNumber++;
+            await PerformSearch();
+        }
+    }
+    
+    private async Task PreviousPage()
+    {
+        if (movies.PageNumber > 1)
+        {
+            pageNumber--;
+            await PerformSearch();
+        }
+    }
+    
+    private async Task SearchMovie()
+    {
+        pageNumber = 1;
+        await PerformSearch();
+    }
+
+}
