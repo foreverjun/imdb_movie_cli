@@ -41,7 +41,7 @@ else if (movies != null && movies.Items.Any())
 
         <div style="padding: 15px;">
             <h5 style="margin: 0 0 10px; font-size: 1.25rem; color: #333;">
-                <a href="/movies/@HttpUtility.UrlEncode(movie.MovieName)" style="text-decoration: none; color: inherit;">
+                <a href="@(movie.MovieName.Contains('#') ? $"/movies/{System.Web.HttpUtility.UrlEncode(movie.MovieName)}" : $"/movies/{movie.MovieName}")" style="text-decoration: none; color: inherit;">
                     @movie.MovieName
                 </a>
             </h5>
